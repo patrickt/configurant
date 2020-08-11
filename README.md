@@ -8,7 +8,7 @@
 
 Configuring your application based on environment variables should be easy. `figurant`, a clone of Kelsey Hightower's [`envconfig`](https://github.com/kelseyhightower/envconfig), allows a user to populate a given data structure automatically by reading the environment variable specified in a given type.
 
-It's easier to show then tell. Given this code, which is both verbose and unsafe (due to calling `read`):
+It's easier to show then tell. Given this code:
 
 ``` haskell
 import Data.Either
@@ -22,9 +22,10 @@ data Sample = Sample
 
 populateSample :: IO Sample
 populateSample = do
-  pn <- lookupEnv "SAMPLE_PORT_NUMBER" >>= maybe fail read
+  pn <- lookupEnv "SAMPLE_PORT_NUMBER" >>= maybe fail (maybe fail pure . readMaybe)
   sn <- lookupEnv "SAMPLE_SERVICE_NAME"
-  td <- lookupEnv "SAMPLE_TIMEOUT_DURATION"
+  td <- lookupEnv "SAMPLE_TIMEOUT_DURATION" >>= maybe fail (maybe fail pure . readMaybe)
+  pure (Sample pn sn td)
 ```
 
 We can instead write
@@ -43,3 +44,5 @@ type Sample = SampleE Plain
 populateSample :: IO Sample
 populateSample = Config.loadFromEnvironment
 ```
+
+This package provides a high-level interface that throws exceptions (for the common case) as well as a low-level interface that provides access to the `Validation` associated with variable parsing.
