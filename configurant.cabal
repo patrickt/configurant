@@ -22,7 +22,7 @@ source-repository head
 
 common common-options
   build-depends:       base ^>= 4.13.0.0
-  
+
   ghc-options:         -Wall
                        -Wcompat
                        -Widentities
@@ -42,17 +42,10 @@ common common-options
 
 library
   import:              common-options
+  build-depends:       tagged ^>= 0.8.6
+                     , validation ^>= 1.1
   hs-source-dirs:      src
-  exposed-modules:     Configurant
-
-executable configurant
-  import:              common-options
-  hs-source-dirs:      app
-  main-is:             Main.hs
-  build-depends:       configurant
-  ghc-options:         -threaded
-                       -rtsopts
-                       -with-rtsopts=-N
+  exposed-modules:     Data.Configurant
 
 test-suite configurant-test
   import:              common-options
