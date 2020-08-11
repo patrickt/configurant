@@ -22,9 +22,9 @@ data Sample = Sample
 
 populateSample :: IO Sample
 populateSample = do
-  pn <- lookupEnv "SAMPLE_PORT_NUMBER" >>= maybe fail (maybe fail pure . readMaybe)
+  pn <- lookupEnv "SAMPLE_PORT_NUMBER" >>= maybe fail (either fail pure . readEither)
   sn <- lookupEnv "SAMPLE_SERVICE_NAME"
-  td <- lookupEnv "SAMPLE_TIMEOUT_DURATION" >>= maybe fail (maybe fail pure . readMaybe)
+  td <- lookupEnv "SAMPLE_TIMEOUT_DURATION" >>= maybe fail (either fail pure . readEither)
   pure (Sample pn sn td)
 ```
 
