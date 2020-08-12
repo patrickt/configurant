@@ -31,7 +31,7 @@ populateSample = do
 We can instead write
 
 ``` haskell
-import Data.Configurant as Config
+import Data.Configurant
 
 data SampleE env = Sample
   { portNumber :: Var env "SAMPLE_PORT_NUMBER" Int,
@@ -39,7 +39,7 @@ data SampleE env = Sample
     timeoutDuration :: Var env "SAMPLE_TIMEOUT_DURATION" Double
   } deriving (Generic, Configurable)
 
-type Sample = SampleE Plain
+type Sample = Configured SampleE
 
 populateSample :: IO Sample
 populateSample = Config.loadFromEnvironment
