@@ -13,10 +13,12 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 
-module Data.Configurant (Var) where
+module Data.Configurant
+  ( Var,
+    Configurable (..),
+  )
+where
 
-import Data.Coerce
-import Data.Kind
 import Data.List.NonEmpty
 import Data.Proxy
 import Data.Tagged
@@ -37,7 +39,7 @@ coerceStyle = unsafeCoerce
 data ConfigError
   = MissingKey String
   | ReadError String String
-  deriving (Eq, Show)
+  deriving stock (Eq, Show)
 
 class Configurable cfg where
   loadFromEnvironment ::
@@ -74,7 +76,7 @@ instance forall name a r. (KnownSymbol name, Read a) => GConfigurable (K1 r (Tag
     pure $ case (mEnvVar, fmap readEither mEnvVar) of
       (Just found, Just (Left _)) -> Failure (pure (ReadError varName found))
       (Just _, Just (Right val)) -> pure (K1 (Tagged val))
-      (Nothing, _) -> Failure (pure (MissingKey varName))
+      _ -> Failure (pure (MissingKey varName))
 
 type family Var (env :: Style) (tag :: Symbol) ty where
   Var 'Plain _ ty = ty
@@ -82,33 +84,3 @@ type family Var (env :: Style) (tag :: Symbol) ty where
 
 -- Var ty _ 'Plain = ty
 -- Var ty name 'Tag = Tagged name ty
-
-data SampleE (env :: Style) = Sample
-  { portNumber :: Var env "SAMPLE_PORT_NUMBER" Int,
-    serviceName :: Var env "SAMPLE_SERVICE_NAME" String
-  }
-  deriving stock (Generic)
-  deriving anyclass (Configurable)
-
-type Sample = SampleE 'Plain
-
-deriving stock instance Show Sample
-
-deriving stock instance Show (SampleE 'Tag)
-
-deriving stock instance Eq Sample
-
-samp :: Sample
-samp = Sample 10 "hi"
-
-tamp :: SampleE 'Tag
-tamp = Sample (Tagged 1) (Tagged "hello")
-
-pamp :: Sample
-pamp = coerceStyle tamp
-
-quickTest :: IO ()
-quickTest = do
-  Env.setEnv "SAMPLE_PORT_NUMBER" "6666"
-  Env.setEnv "SAMPLE_SERVICE_NAME" "hi"
-  loadFromEnvironment >>= print @(_ Sample)
