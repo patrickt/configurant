@@ -31,10 +31,10 @@ throws x = withFrozenCallStack $ do
     Hedgehog.failure
 
 throwsWhenVarsMissing :: Hedgehog.Property
-throwsWhenVarsMissing = Hedgehog.property (throws (loadFromEnvironment @SampleE))
+throwsWhenVarsMissing = Hedgehog.property (throws (loadFromEnvironment' @SampleE))
 
 loadsWhenVarsPresent :: Hedgehog.Property
-loadsWhenVarsPresent = Hedgehog.property (void (Hedgehog.evalIO (loadFromEnvironment @SampleE)))
+loadsWhenVarsPresent = Hedgehog.property (void (Hedgehog.evalIO (loadFromEnvironment' @SampleE)))
 
 main :: IO ()
 main = do
