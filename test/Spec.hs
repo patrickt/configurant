@@ -36,24 +36,6 @@ throwsWhenVarsMissing = Hedgehog.property (throws (loadFromEnvironment @SampleE)
 loadsWhenVarsPresent :: Hedgehog.Property
 loadsWhenVarsPresent = Hedgehog.property (void (Hedgehog.evalIO (loadFromEnvironment @SampleE)))
 
--- type Sample = SampleE 'Plain
-
--- deriving stock instance Show Sample
-
--- deriving stock instance Show (SampleE 'Tag)
-
--- deriving stock instance Eq Sample
-
--- samp :: Sample
--- samp = Sample 10 "hi"
-
--- tamp :: SampleE 'Tag
--- tamp = Sample (Tagged 1) (Tagged "hello")
-
--- pamp :: Sample
--- pamp = coerceS
---tyle tamp
-
 main :: IO ()
 main = do
   void (Hedgehog.check throwsWhenVarsMissing)
