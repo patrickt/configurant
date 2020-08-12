@@ -45,4 +45,6 @@ populateSample :: IO Sample
 populateSample = Config.loadFromEnvironment
 ```
 
+No changes in client code are required: the `Var` type family resolves directly to the type that it wraps, so you don't have to worry about dealing with any `Identity` wrappers or whatnot.
+
 This package provides a high-level interface that throws exceptions (for the common case) as well as a low-level interface that provides access to the `Validation` associated with variable parsing.
