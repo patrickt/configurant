@@ -6,7 +6,7 @@
 
 > _figurant_, noun: an actor that figures in a scene without speaking or without taking a prominent part.
 
-Configuring your application based on environment variables should be easy. `figurant`, a clone of Kelsey Hightower's [`envconfig`](https://github.com/kelseyhightower/envconfig), allows a user to populate a given data structure automatically by reading the environment variable specified in a given type.
+Configuring your application based on environment variables should be easy. `configurant`, a clone of Kelsey Hightower's [`envconfig`](https://github.com/kelseyhightower/envconfig), allows a user to populate a given data structure automatically by reading the environment variable specified in a given type.
 
 It's easier to show then tell. Given this code:
 
