@@ -47,6 +47,7 @@ library
                      , validators <= 1
   hs-source-dirs:      src
   exposed-modules:     Configurant
+                     , Configurant.Internal
 
 test-suite configurant-test
   import:              common-options
