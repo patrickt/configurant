@@ -51,7 +51,7 @@ library
 test-suite configurant-test
   import:              common-options
   build-depends:       configurant
-                     , hedgehog ^>= 1
+                     , hedgehog == 1.*
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test
   main-is:             Spec.hs
