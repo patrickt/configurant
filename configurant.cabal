@@ -21,7 +21,7 @@ source-repository head
   location:            https://github.com/patrickt/configurant.git
 
 common common-options
-  build-depends:       base ^>= 4.13.0.0
+  build-depends:       base >= 4.14.0.0 && <5
 
   ghc-options:         -Wall
                        -Wcompat
@@ -42,11 +42,11 @@ common common-options
 
 library
   import:              common-options
-  build-depends:       tagged ^>= 0.8.6
-                     , validators ^>= 0.0.1
+  build-depends:       higgledy ^>= 0.4.1
+                     , named ^>= 0.3
+                     , validators <= 1
   hs-source-dirs:      src
-  exposed-modules:     Data.Configurant
-                       Data.Configurant.Internal
+  exposed-modules:     Configurant
 
 test-suite configurant-test
   import:              common-options

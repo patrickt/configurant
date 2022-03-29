@@ -1,50 +1,34 @@
-{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE ImportQualifiedPost #-}
+{-# LANGUAGE OverloadedLabels #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Main (main) where
 
+import Configurant
 import Control.Monad
-import Data.Configurant
-import qualified Hedgehog
-import qualified System.Environment as Env
 import GHC.Generics (Generic)
-import qualified Control.Exception as Exception
-import GHC.Stack (withFrozenCallStack)
-import Data.Either (isRight)
-import Control.Monad.IO.Class (MonadIO)
+import Hedgehog
+import Hedgehog.Gen qualified as Gen
+import Hedgehog.Range qualified as Range
 
-data SampleE env = Sample
-  { portNumber :: Var env "SAMPLE_PORT_NUMBER" Int,
-    serviceName :: Var env "SAMPLE_SERVICE_NAME" String
-  }
-  deriving stock (Generic)
-  deriving anyclass (Configurable)
+data Sample = Sample {numeric :: Int, textual :: String} deriving stock (Show, Eq, Generic)
 
-throws :: (Hedgehog.MonadTest m, MonadIO m) => IO b -> m ()
-throws x = withFrozenCallStack $ do
-  res <- Hedgehog.evalIO (Exception.try @Exception.SomeException x)
-  when (isRight res) $ do
-    Hedgehog.footnote "Expected action to throw an error"
-    Hedgehog.failure
+example :: Config Sample
+example = record @Sample ! #numeric (Configurant.read "INT_VALUE") ! #textual "STR_VALUE"
 
-throwsWhenVarsMissing :: Hedgehog.Property
-throwsWhenVarsMissing = Hedgehog.property (throws (loadFromEnvironment' @SampleE))
-
-loadsWhenVarsPresent :: Hedgehog.Property
-loadsWhenVarsPresent = Hedgehog.property (void (Hedgehog.evalIO (loadFromEnvironment' @SampleE)))
+prop_simpleParsing :: Hedgehog.Property
+prop_simpleParsing = Hedgehog.property do
+  ival <- forAll (Gen.int Range.linearBounded)
+  strval <- forAll (Gen.string (Range.linear 1 100) Gen.ascii)
+  parsed <- evalEither . readConfig [("INT_VALUE", show ival), ("STR_VALUE", strval)] $ example
+  parsed === Sample ival strval
 
 main :: IO ()
-main = do
-  void (Hedgehog.check throwsWhenVarsMissing)
-
-  Env.setEnv "SAMPLE_PORT_NUMBER" "6666"
-  Env.setEnv "SAMPLE_SERVICE_NAME" "hi"
-
-  void (Hedgehog.check loadsWhenVarsPresent)
-
-  Env.setEnv "SAMPLE_PORT_NUMBER" "THIS IS NOT A PORT NUMBER"
-
-  void (Hedgehog.check throwsWhenVarsMissing)
+main = void $ checkParallel $$(discover)
