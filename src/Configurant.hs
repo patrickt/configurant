@@ -1,13 +1,32 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 
+-- |
+--
+-- This module is intended to be imported qualified:
+--
+-- @
+--   import Configurant (Config, (!))
+--   import Configurant qualified as Config
+-- @
 module Configurant
-  ( Config,
+  ( -- * Types
+    Config,
+    Spec,
+
+    -- * Specifiers
+    string,
+    read,
+    validate,
+
+    -- * Evaluators
     readEnv,
     readConfig,
-    read,
+
+    -- * Errors
     Error (..),
     Errors,
-    Env,
+
+    -- * Re-exports
     module Data.Generic.HKD,
     module Named,
   )
