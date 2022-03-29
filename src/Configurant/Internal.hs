@@ -9,13 +9,11 @@
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TypeApplications #-}
+{-# OPTIONS_GHC -Wno-missing-export-lists #-}
 
 module Configurant.Internal
-  ( module Configurant.Internal
-  )
 where
 
 import Control.Applicative
@@ -66,7 +64,7 @@ type Config a = HKD a Spec
 type Key = String
 
 -- | A 'Spec' describes the manner in which a particular environment variable is parsed.
--- You use the smart constructors in this module, like 'read', to build them.
+-- You use smart constructors, like 'read', to build them.
 data Spec a where
   Keyed :: Spec a -> Key -> Spec a
   String :: Spec String
