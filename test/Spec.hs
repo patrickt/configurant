@@ -27,7 +27,7 @@ prop_simpleParsing :: Hedgehog.Property
 prop_simpleParsing = Hedgehog.property do
   ival <- forAll (Gen.int Range.linearBounded)
   strval <- forAll (Gen.string (Range.linear 1 100) Gen.ascii)
-  parsed <- evalEither . readConfig [("INT_VALUE", show ival), ("STR_VALUE", strval)] $ example
+  parsed <- evalEither . fromPairs [("INT_VALUE", show ival), ("STR_VALUE", strval)] $ example
   parsed === Sample ival strval
 
 main :: IO ()

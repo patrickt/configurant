@@ -17,21 +17,24 @@ module Configurant
     string,
     read,
     validate,
+    orDefault,
 
     -- * Evaluators
-    readEnv,
-    readConfig,
+    fromEnv,
+    fromPairs,
 
     -- * Errors
     Error (..),
-    Errors,
+    Errors (..),
 
     -- * Re-exports
     module Data.Generic.HKD,
     module Named,
+    module Control.Applicative,
   )
 where
 
 import Configurant.Internal
+import Control.Applicative
 import Data.Generic.HKD
 import Named

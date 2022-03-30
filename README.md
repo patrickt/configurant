@@ -6,7 +6,9 @@
 
 > _figurant_, noun: an actor that figures in a scene without speaking or without taking a prominent part.
 
-Configuring your application based on environment variables should be easy. `configurant`, a clone of Kelsey Hightower's [`envconfig`](https://github.com/kelseyhightower/envconfig), allows a user to populate a given data structure automatically by reading the environment variable specified in a given type.
+Configuring your application based on environment variables should be easy. `configurant`, a clone of Kelsey Hightower's [`envconfig`](https://github.com/kelseyhightower/envconfig), allows a user to populate a given data structure automatically by reading the environment variable specified in a given type. It aims to prioritize concision, interface simplicity, and error messages.
+
+## Example
 
 It's easier to show then tell. Given a `Server` type containing configuration parameters for some hypothetical web server:
 
@@ -39,3 +41,11 @@ main = Config.fromEnv serverEnv >>= print
 ```
 
 Under the hood, this uses higher-kinded data types via the `higgledy` and `barbies` library, and the validation monad from `validators`.
+
+## TODO
+
+- Figure out the story with `System.Environment` and `System.Environment.Blank`
+
+## Thanks
+
+Kelsey Hightower's `envconfig` served as the primary source of inspiration. The idea to use `higgledy` came from me finding [`harg`](https://hackage.haskell.org/package/harg), though `configurant` is simpler and less ambitious than `harg`, being intended only for environment variable parsing.

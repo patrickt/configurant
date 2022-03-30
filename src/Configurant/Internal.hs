@@ -12,6 +12,10 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -Wno-missing-export-lists #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE ConstraintKinds #-}
 
 module Configurant.Internal
 where
@@ -28,19 +32,18 @@ import System.Environment (getEnvironment)
 import Text.Read (readMaybe)
 import Prelude hiding (read)
 import Prettyprinter qualified as Pretty
-import Data.Foldable
+import Data.Foldable hiding (toList)
 import Prettyprinter (pretty, (<+>))
 import Data.Typeable
 import Prettyprinter.Render.String
 import Data.Maybe
+import GHC.Exts (IsList (..))
 
 -- | A 'Config' of a type variable @a@ is a view of a higher-kinded analog of @a@, with its
 -- fields populated with 'Spec' values. In other words, given some plain old data type:
 --
 -- @
---   import Configurant (Config, (!))
---   import Configurant qualified as Config
---   data Server = Server { port :: Int, hostname :: String }
+--   data Server = Server { port :: Int, hostname :: String } deriving (Typeable, Generic)
 -- @
 --
 -- a 'Config' @Server@ is able to hold 'Spec' 'Int' and 'Spec' String values, which means
@@ -53,10 +56,15 @@ import Data.Maybe
 --
 -- @
 --  serverDesc :: Config Server
---  serverDesc = 'record' ! #port (Config.'read' \"SERVER_PORT\") ! #hostname \"SERVER_HOSTNAME\"
+--  serverDesc = 'record'
+--    ! #port (Config.'read' \"SERVER_PORT\")
+--    ! #hostname \"SERVER_HOSTNAME\"
 -- @
 --
--- Once you've constructed a 'Config' value, you can evaluate it with 'readEnv' or 'readConfig'.
+-- You can also use the 'Data.Generic.HKD.build' function, or you can create an empty config with
+-- 'mempty' and update its fields with 'Data.Generic.HKD.position' and 'Data.Generic.HKD.field'.
+--
+-- Once you've constructed a 'Config' value, you can evaluate it with 'fromEnv' or 'fromPairs'.
 type Config a = HKD a Spec
 
 
@@ -64,13 +72,18 @@ type Config a = HKD a Spec
 type Key = String
 
 -- | A 'Spec' describes the manner in which a particular environment variable is parsed.
--- You use smart constructors, like 'read', to build them.
+-- You use smart constructors, like 'read', to build them. Because 'Spec' implements
+-- 'Alternative', you can also embed constant values with 'pure', perform left-biased
+-- choice with '<|>', and specify optional values with 'optional'.
 data Spec a where
   Keyed :: Spec a -> Key -> Spec a
   String :: Spec String
   Read :: (Typeable a, Read a) => Spec a
   Validate :: Typeable a => (Key -> Maybe String -> Validation Errors a) -> Spec a
   Fail :: HasCallStack => Spec a
+  Pure :: a -> Spec a
+  Ap :: Spec (a -> b) -> Spec a -> Spec b
+  Choice :: Spec a -> Spec a -> Spec a
 
 instance Pretty.Pretty (Spec a) where
   pretty = \case
@@ -79,14 +92,32 @@ instance Pretty.Pretty (Spec a) where
     Read -> Pretty.viaShow (typeRep (Proxy @a)) <+> "value"
     Validate _ -> "custom validator for" <+> Pretty.viaShow (typeRep (Proxy @a))
     Fail -> "failure"
+    Pure _ -> "constant value"
+    Ap _ _ -> "apply"
+    Choice a b -> "choice" <+> Pretty.parens (pretty a) <+> Pretty.parens (pretty b)
 
 instance Show (Spec a) where
   showsPrec _ = renderShowS . Pretty.layoutPretty Pretty.defaultLayoutOptions . pretty
+
+instance Functor Spec where fmap = liftA
+
+instance Applicative Spec where
+  pure = Pure
+  (<*>) = Ap
+
+instance Alternative Spec where
+  (<|>) = Choice
+  empty = Fail
 
 -- I'd like Functor, Applicative, and Alternative for Spec, but it makes the validator a little fraught
 
 -- | You can use string literals for the common case of parsing unquoted string arguments.
 instance IsString (Spec String) where fromString = string
+
+-- | The Configurable class represents types that can be interpreted with 'fromEnv' or 'fromPairs'.
+-- You do not need to declare instances for it: all you need to do is provide a 'Generic' instance
+-- and you will be opted into this class automatically.
+type Configurable a =  (FunctorB (HKD a), Construct (Validation Errors) a)
 
 -- | Describes an argument that should be read as a literal string value. You can
 -- use @OverloadedStrings@ and elide this call if you wish.
@@ -104,6 +135,12 @@ read = Keyed Read
 validate :: Typeable a => Key -> (Key -> Maybe String -> Validation Errors a) -> Spec a
 validate k f = Keyed (Validate f) k
 
+-- | Helper for specifying default values for fields. Used infix, like so:
+--
+-- > string "MY_VAR" `orDefault` "default value"
+orDefault :: Spec a -> a -> Spec a
+s `orDefault` v = s <|> pure v
+
 -- | Describes the possible errors that can be encountered during environment parsing.
 data Error
   = NoValueForKey Key String
@@ -112,29 +149,40 @@ data Error
   | BadFormat String String
   deriving stock (Show)
 
--- | Errors accumulate into a nonempty list.
-type Errors = NonEmpty Error
+instance Pretty.Pretty Error where
+  pretty = \case
+    NoValueForKey k s ->
+      "Missing value for key " <> Pretty.squotes (pretty k) <+> Pretty.parens ("expected " <> pretty s)
+    ValidationError cs ->
+      "Unknown validation error. Call stack:" <> Pretty.line <> Pretty.viaShow cs
+    BadFormat k v ->
+      "Incorrect format for key " <> Pretty.squotes (pretty k) <> ":" <+> pretty v
+    Unkeyed _s ->
+      "Internal invariant violated: unkeyed Spec value"
 
-describeErrors :: Errors -> Pretty.Doc a
-describeErrors = foldl' (\t e -> t <> Pretty.line' <> go e) mempty
-  where
-    go :: Error -> Pretty.Doc a
-    go = \case
-      NoValueForKey k s ->
-        "Missing value for key " <> Pretty.squotes (pretty k) <+> Pretty.parens ("expected " <> pretty s)
-      ValidationError cs ->
-        "Unknown validation error. Call stack:" <> Pretty.line <> Pretty.viaShow cs
-      BadFormat k v ->
-        "Incorrect format for key " <> Pretty.squotes (pretty k) <> ":" <+> pretty v
-      Unkeyed _s ->
-        "Internal invariant violated: unkeyed Spec value"
+-- | Errors accumulate into a nonempty list.
+newtype Errors = Errors { getErrors :: NonEmpty Error }
+  deriving newtype (Show, Semigroup)
+
+instance IsList Errors where
+  type Item Errors = Error
+  fromList = Errors . fromList
+  toList = toList . getErrors
+
+instance Pretty.Pretty Errors where
+  pretty = foldl' (\t e -> t <> Pretty.line' <> pretty e) mempty . getErrors
 
 die :: Error -> Validation Errors a
-die = Validation.Failure . pure
+die = Validation.Failure . Errors . pure
 
 toValidation :: forall a. Spec a -> [(String, String)] -> Validation Errors a
 toValidation s env = case s of
   Fail -> die (ValidationError callStack)
+  Pure a -> pure a
+  Ap f a -> toValidation f env <*> toValidation a env
+  Choice a b -> case toValidation a env of
+    Validation.Failure _ -> toValidation b env
+    Validation.Success x -> pure x
   Keyed sub key -> case sub of
     Validate f -> f key (lookup key env)
     String -> lookup key env & maybe (die (NoValueForKey key (show sub))) pure
@@ -147,9 +195,11 @@ toValidation s env = case s of
 
 -- | Reads in a 'Config' and constructs the associated value based on the key-value pairs specified
 -- in the program's environment (as returned from 'getEnvironment').
-readEnv :: (FunctorB (HKD a), Construct (Validation Errors) a) => Config a -> IO (Either Errors a)
-readEnv c = flip readConfig c <$> getEnvironment
+--
+-- The constraints in this instance head are satisfied iff the result type has a 'Generic' instance.
+fromEnv :: (Configurable a) => Config a -> IO (Either Errors a)
+fromEnv c = flip fromPairs c <$> getEnvironment
 
--- | As 'readEnv', except reading from a provided association list of key-value pairs.
-readConfig :: (FunctorB (HKD a), Construct (Validation Errors) a) => [(String, String)] -> Config a -> Either Errors a
-readConfig e = Validation.toEither . construct . bmap (`toValidation` e)
+-- | As 'fromEnv', except reading from a provided association list of key-value pairs.
+fromPairs :: Configurable a => [(String, String)] -> Config a -> Either Errors a
+fromPairs e = Validation.toEither . construct . bmap (`toValidation` e)
