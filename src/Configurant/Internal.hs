@@ -28,7 +28,7 @@ import Data.String (IsString (..))
 import Data.Validation (Validation)
 import Data.Validation qualified as Validation
 import GHC.Stack
-import System.Environment (getEnvironment)
+import System.Environment.Blank (getEnvironment)
 import Text.Read (readMaybe)
 import Prelude hiding (read)
 import Prettyprinter qualified as Pretty
@@ -78,6 +78,7 @@ type Key = String
 data Spec a where
   Keyed :: Spec a -> Key -> Spec a
   String :: Spec String
+  NonEmpty :: Spec String
   Read :: (Typeable a, Read a) => Spec a
   Validate :: Typeable a => (Key -> Maybe String -> Validation Errors a) -> Spec a
   Fail :: HasCallStack => Spec a
@@ -89,6 +90,7 @@ instance Pretty.Pretty (Spec a) where
   pretty = \case
     Keyed s _ -> pretty s
     String -> "string value"
+    NonEmpty -> "nonempty string value"
     Read -> Pretty.viaShow (typeRep (Proxy @a)) <+> "value"
     Validate _ -> "custom validator for" <+> Pretty.viaShow (typeRep (Proxy @a))
     Fail -> "failure"
@@ -124,6 +126,10 @@ type Configurable a =  (FunctorB (HKD a), Construct (Validation Errors) a)
 string :: Key -> Spec String
 string = Keyed String
 
+-- | As 'string', but disallowing blank or unkeyed values.
+nonEmptyString :: Key -> Spec String
+nonEmptyString = Keyed NonEmpty
+
 -- | Describes an argument that should be parsed with 'Prelude.read'. The 'Typeable'
 -- constraint is used to provide error messages.
 read :: (Typeable a, Read a) => Key -> Spec a
@@ -135,6 +141,17 @@ read = Keyed Read
 validate :: Typeable a => Key -> (Key -> Maybe String -> Validation Errors a) -> Spec a
 validate k f = Keyed (Validate f) k
 
+-- | Provides a specifier for the common case of taking text and returning an 'Either' 'String'.
+-- For example, if you have a config value that contains embedded JSON, you can parse it
+-- with Aeson by passing
+parsing :: (Typeable a, IsString s) => Key -> (s -> Either String a) -> Spec a
+parsing k f = validate k $ \k' ms -> do
+  case ms of
+    Nothing -> die (NoValueForKey k' "TODO")
+    Just a  -> case f (fromString a) of
+      Left err -> die (ParseError k' err)
+      Right x  -> pure x
+
 -- | Helper for specifying default values for fields. Used infix, like so:
 --
 -- > string "MY_VAR" `orDefault` "default value"
@@ -144,9 +161,11 @@ s `orDefault` v = s <|> pure v
 -- | Describes the possible errors that can be encountered during environment parsing.
 data Error
   = NoValueForKey Key String
+  | EmptyValueForKey String
   | ValidationError CallStack
   | Unkeyed String
   | BadFormat String String
+  | ParseError Key String
   deriving stock (Show)
 
 instance Pretty.Pretty Error where
@@ -157,6 +176,8 @@ instance Pretty.Pretty Error where
       "Unknown validation error. Call stack:" <> Pretty.line <> Pretty.viaShow cs
     BadFormat k v ->
       "Incorrect format for key " <> Pretty.squotes (pretty k) <> ":" <+> pretty v
+    ParseError reason _ -> "Parse error: " <> Pretty.squotes (Pretty.viaShow reason)
+    EmptyValueForKey k -> "Got empty value when looking up key " <> Pretty.squotes (Pretty.viaShow k)
     Unkeyed _s ->
       "Internal invariant violated: unkeyed Spec value"
 
@@ -186,6 +207,10 @@ toValidation s env = case s of
   Keyed sub key -> case sub of
     Validate f -> f key (lookup key env)
     String -> lookup key env & maybe (die (NoValueForKey key (show sub))) pure
+    NonEmpty -> case lookup key env of
+      Nothing -> die (NoValueForKey key (show sub))
+      Just "" -> die (EmptyValueForKey key)
+      Just x  -> pure x
     Read -> case fmap readMaybe (lookup key env) of
       Nothing -> die (NoValueForKey key (show sub))
       Just Nothing -> die (BadFormat key (fromMaybe "" (lookup key env))) -- todo: report value

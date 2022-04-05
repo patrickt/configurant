@@ -15,6 +15,7 @@ module Configurant
 
     -- * Specifiers
     string,
+    nonEmptyString,
     read,
     validate,
     orDefault,
