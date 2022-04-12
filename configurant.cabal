@@ -14,7 +14,8 @@ category:            Configuration
 build-type:          Simple
 extra-doc-files:     README.md
                      CHANGELOG.md
-tested-with:         GHC == 8.8.3
+tested-with:         GHC == 8.10.7
+                     GHC == 9.2.1
 
 source-repository head
   type:                git
