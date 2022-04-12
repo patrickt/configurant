@@ -27,6 +27,9 @@ example = record @Sample ! #numeric (Configurant.read "INT_VALUE") ! #textual "S
 needsNonempty :: Config Sample
 needsNonempty = record @Sample ! #numeric (Configurant.read "INT_VALUE") ! #textual (Configurant.nonEmptyString "STR_VALUE")
 
+alternative :: Config Sample
+alternative = record @Sample ! #numeric (Configurant.read "INT_VALUE" <|> pure 5) ! #textual (Configurant.string "STR_VALUE" <|> pure "ok")
+
 prop_simpleParsing :: Hedgehog.Property
 prop_simpleParsing = Hedgehog.property do
   ival <- forAll (Gen.int Range.linearBounded)
@@ -43,6 +46,11 @@ prop_needsNonempty :: Hedgehog.Property
 prop_needsNonempty = Hedgehog.property do
   let failing = fromPairs [("INT_VALUE", "3"), ("STR_VALUE", "")] needsNonempty
   failing === Left [EmptyValueForKey "STR_VALUE"]
+
+prop_choiceWorks :: Hedgehog.Property
+prop_choiceWorks = Hedgehog.property do
+  parsed <- evalEither . fromPairs mempty $ alternative
+  parsed === Sample 5 "ok"
 
 main :: IO ()
 main = do

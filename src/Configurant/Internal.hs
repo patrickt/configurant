@@ -114,6 +114,8 @@ instance Alternative Spec where
 -- I'd like Functor, Applicative, and Alternative for Spec, but it makes the validator a little fraught
 
 -- | You can use string literals for the common case of parsing unquoted string arguments.
+-- Note that this might cause type inference problems when combined with '<|>'. Use 'string' if
+-- you encounter this.
 instance IsString (Spec String) where fromString = string
 
 -- | The Configurable class represents types that can be interpreted with 'fromEnv' or 'fromPairs'.
@@ -141,7 +143,7 @@ read = Keyed Read
 validate :: Typeable a => Key -> (Key -> Maybe String -> Validation Errors a) -> Spec a
 validate k f = Keyed (Validate f) k
 
--- | Provides a specifier for the common case of taking text and returning an 'Either' 'String'.
+-- | Provides a specifier for the common case of taking text and returning an 'Either' 'Prelude.String'.
 -- For example, if you have a config value that contains embedded JSON, you can parse it
 -- with Aeson by passing
 parsing :: (Typeable a, IsString s) => Key -> (s -> Either String a) -> Spec a
