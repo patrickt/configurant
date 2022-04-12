@@ -31,7 +31,7 @@ you can construct a description of how to parse its environment variables, using
 serverEnv :: Config Server
 serverEnv = Config.record
   ! #port (Config.read "SERVER_PORT")
-  ! #hostname "SERVER_HOSTNAME"
+  ! #hostname (Config.string "SERVER_HOSTNAME")
 ```
 
 You can then use `Config.fromEnv` to construct a `Server` object based on the environment variables with which the program was invoked:
@@ -58,4 +58,4 @@ With this higher-kinded representation, it's fairly trivial to slot in a validat
 
 ## Thanks
 
-Kelsey Hightower's `envconfig` served as the primary source of inspiration. The idea to use `higgledy` came from me finding [`harg`](https://hackage.haskell.org/package/harg), though `configurant` is less ambitious and has fewer dependencies than `harg`, being intended only for environment variable parsing, and I didn't look at `harg`'s implementation'.
+Kelsey Hightower's `envconfig` served as the primary source of inspiration. The idea to use `higgledy` came from me finding [`harg`](https://hackage.haskell.org/package/harg), though I didn't look at its implementation: `harg` does much more than `configurant` does but has a larger dependency footprint.
