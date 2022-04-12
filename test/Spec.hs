@@ -6,6 +6,7 @@
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 
 module Main (main) where
@@ -23,6 +24,9 @@ data Sample = Sample {numeric :: Int, textual :: String} deriving stock (Show, E
 example :: Config Sample
 example = record @Sample ! #numeric (Configurant.read "INT_VALUE") ! #textual "STR_VALUE"
 
+needsNonempty :: Config Sample
+needsNonempty = record @Sample ! #numeric (Configurant.read "INT_VALUE") ! #textual (Configurant.nonEmptyString "STR_VALUE")
+
 prop_simpleParsing :: Hedgehog.Property
 prop_simpleParsing = Hedgehog.property do
   ival <- forAll (Gen.int Range.linearBounded)
@@ -35,13 +39,12 @@ prop_handleMissing = Hedgehog.property do
   let failing = fromPairs [] example
   failing === Left [NoValueForKey "INT_VALUE" "Int value", NoValueForKey "STR_VALUE" "string value"]
 
+prop_needsNonempty :: Hedgehog.Property
+prop_needsNonempty = Hedgehog.property do
+  let failing = fromPairs [("INT_VALUE", "3"), ("STR_VALUE", "")] needsNonempty
+  failing === Left [EmptyValueForKey "STR_VALUE"]
+
 main :: IO ()
 main = do
-  ok <-
-    checkParallel $
-      Group
-        "Test.Example"
-        [ ("simple parsing", prop_simpleParsing),
-          ("missing values", prop_handleMissing)
-        ]
+  ok <- checkParallel $$(discover)
   unless ok (die "failed")
