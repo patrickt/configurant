@@ -1,43 +1,45 @@
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ImportQualifiedPost #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TypeApplications #-}
-{-# OPTIONS_GHC -Wno-missing-export-lists #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE ConstraintKinds #-}
+{-# OPTIONS_GHC -Wno-missing-export-lists #-}
 
-module Configurant.Internal
-where
+module Configurant.Internal where
 
 import Control.Applicative
+import Control.Monad
+import Data.Foldable hiding (toList)
 import Data.Function
 import Data.Generic.HKD
 import Data.List.NonEmpty (NonEmpty)
+import Data.Maybe
 import Data.String (IsString (..))
+import Data.Typeable
 import Data.Validation (Validation)
 import Data.Validation qualified as Validation
+import GHC.Exts (IsList (..))
 import GHC.Stack
+import Prettyprinter (pretty, (<+>))
+import Prettyprinter qualified as Pretty
+import Prettyprinter.Render.String
+import Prettyprinter.Render.Text (putDoc)
 import System.Environment.Blank (getEnvironment)
+import System.Exit (exitFailure)
 import Text.Read (readMaybe)
 import Prelude hiding (read)
-import Prettyprinter qualified as Pretty
-import Data.Foldable hiding (toList)
-import Prettyprinter (pretty, (<+>))
-import Data.Typeable
-import Prettyprinter.Render.String
-import Data.Maybe
-import GHC.Exts (IsList (..))
 
 -- | A 'Config' of a type variable @a@ is a view of a higher-kinded analog of @a@, with its
 -- fields populated with 'Spec' values. In other words, given some plain old data type:
@@ -66,7 +68,6 @@ import GHC.Exts (IsList (..))
 --
 -- Once you've constructed a 'Config' value, you can evaluate it with 'fromEnv' or 'fromPairs'.
 type Config a = HKD a Spec
-
 
 -- | Environment variables are keyed by strings.
 type Key = String
@@ -121,7 +122,7 @@ instance IsString (Spec String) where fromString = string
 -- | The Configurable class represents types that can be interpreted with 'fromEnv' or 'fromPairs'.
 -- You do not need to declare instances for it: all you need to do is provide a 'Generic' instance
 -- and you will be opted into this class automatically.
-type Configurable a =  (FunctorB (HKD a), Construct (Validation Errors) a)
+type Configurable a = (FunctorB (HKD a), Construct (Validation Errors) a)
 
 -- | Describes an argument that should be read as a literal string value. You can
 -- use @OverloadedStrings@ and elide this call if you wish.
@@ -145,14 +146,14 @@ validate k f = Keyed (Validate f) k
 
 -- | Provides a specifier for the common case of taking text and returning an 'Either' 'Prelude.String'.
 -- For example, if you have a config value that contains embedded JSON, you can parse it
--- with Aeson by passing
+-- with Aeson by passing @eitherDecode@.
 parsing :: (Typeable a, IsString s) => Key -> (s -> Either String a) -> Spec a
 parsing k f = validate k $ \k' ms -> do
   case ms of
     Nothing -> die (NoValueForKey k' "TODO")
-    Just a  -> case f (fromString a) of
+    Just a -> case f (fromString a) of
       Left err -> die (ParseError k' err)
-      Right x  -> pure x
+      Right x -> pure x
 
 -- | Helper for specifying default values for fields. Used infix, like so:
 --
@@ -184,7 +185,7 @@ instance Pretty.Pretty Error where
       "Internal invariant violated: unkeyed Spec value"
 
 -- | Errors accumulate into a nonempty list.
-newtype Errors = Errors { getErrors :: NonEmpty Error }
+newtype Errors = Errors {getErrors :: NonEmpty Error}
   deriving newtype (Show, Eq, Semigroup)
 
 instance IsList Errors where
@@ -212,7 +213,7 @@ toValidation s env = case s of
     NonEmpty -> case lookup key env of
       Nothing -> die (NoValueForKey key (show sub))
       Just "" -> die (EmptyValueForKey key)
-      Just x  -> pure x
+      Just x -> pure x
     Read -> case fmap readMaybe (lookup key env) of
       Nothing -> die (NoValueForKey key (show sub))
       Just Nothing -> die (BadFormat key (fromMaybe "" (lookup key env))) -- todo: report value
@@ -226,6 +227,13 @@ toValidation s env = case s of
 -- The constraints in this instance head are satisfied iff the result type has a 'Generic' instance.
 fromEnv :: (Configurable a) => Config a -> IO (Either Errors a)
 fromEnv c = flip fromPairs c <$> getEnvironment
+
+-- | As 'fromEnv', but failing in 'IO' and printing encountered error messages if a
+-- parse error occurs.
+fromEnvOrExit :: (Configurable a) => Config a -> IO a
+fromEnvOrExit = fromEnv >=> either perish pure
+  where
+    perish (Errors msgs) = traverse (putDoc . pretty) msgs *> exitFailure
 
 -- | As 'fromEnv', except reading from a provided association list of key-value pairs.
 fromPairs :: Configurable a => [(String, String)] -> Config a -> Either Errors a

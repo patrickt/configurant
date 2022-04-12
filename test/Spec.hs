@@ -28,7 +28,7 @@ needsNonempty :: Config Sample
 needsNonempty = record @Sample ! #numeric (Configurant.read "INT_VALUE") ! #textual (Configurant.nonEmptyString "STR_VALUE")
 
 alternative :: Config Sample
-alternative = record @Sample ! #numeric (Configurant.read "INT_VALUE" <|> pure 5) ! #textual (Configurant.string "STR_VALUE" <|> pure "ok")
+alternative = record @Sample ! #numeric (Configurant.read "INT_VALUE" `orDefault` 5) ! #textual (Configurant.string "STR_VALUE" `orDefault` "ok")
 
 prop_simpleParsing :: Hedgehog.Property
 prop_simpleParsing = Hedgehog.property do

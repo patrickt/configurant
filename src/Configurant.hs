@@ -22,6 +22,7 @@ module Configurant
 
     -- * Evaluators
     fromEnv,
+    fromEnvOrExit,
     fromPairs,
 
     -- * Errors
