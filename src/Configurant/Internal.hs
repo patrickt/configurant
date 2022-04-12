@@ -161,19 +161,19 @@ s `orDefault` v = s <|> pure v
 -- | Describes the possible errors that can be encountered during environment parsing.
 data Error
   = NoValueForKey Key String
-  | EmptyValueForKey String
-  | ValidationError CallStack
+  | EmptyValueForKey Key
+  | ValidationError String
   | Unkeyed String
   | BadFormat String String
   | ParseError Key String
-  deriving stock (Show)
+  deriving stock (Show, Eq)
 
 instance Pretty.Pretty Error where
   pretty = \case
     NoValueForKey k s ->
       "Missing value for key " <> Pretty.squotes (pretty k) <+> Pretty.parens ("expected " <> pretty s)
     ValidationError cs ->
-      "Unknown validation error. Call stack:" <> Pretty.line <> Pretty.viaShow cs
+      "Failed custom validation error. Call stack:" <> Pretty.line <> Pretty.viaShow cs
     BadFormat k v ->
       "Incorrect format for key " <> Pretty.squotes (pretty k) <> ":" <+> pretty v
     ParseError reason _ -> "Parse error: " <> Pretty.squotes (Pretty.viaShow reason)
@@ -183,7 +183,7 @@ instance Pretty.Pretty Error where
 
 -- | Errors accumulate into a nonempty list.
 newtype Errors = Errors { getErrors :: NonEmpty Error }
-  deriving newtype (Show, Semigroup)
+  deriving newtype (Show, Eq, Semigroup)
 
 instance IsList Errors where
   type Item Errors = Error
@@ -198,7 +198,7 @@ die = Validation.Failure . Errors . pure
 
 toValidation :: forall a. Spec a -> [(String, String)] -> Validation Errors a
 toValidation s env = case s of
-  Fail -> die (ValidationError callStack)
+  Fail -> die (ValidationError (show callStack))
   Pure a -> pure a
   Ap f a -> toValidation f env <*> toValidation a env
   Choice a b -> case toValidation a env of

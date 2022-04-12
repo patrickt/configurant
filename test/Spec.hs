@@ -1,12 +1,11 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE ImportQualifiedPost #-}
 {-# LANGUAGE OverloadedLabels #-}
+{-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 
 module Main (main) where
@@ -17,6 +16,7 @@ import GHC.Generics (Generic)
 import Hedgehog
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
+import System.Exit (die)
 
 data Sample = Sample {numeric :: Int, textual :: String} deriving stock (Show, Eq, Generic)
 
@@ -30,5 +30,18 @@ prop_simpleParsing = Hedgehog.property do
   parsed <- evalEither . fromPairs [("INT_VALUE", show ival), ("STR_VALUE", strval)] $ example
   parsed === Sample ival strval
 
+prop_handleMissing :: Hedgehog.Property
+prop_handleMissing = Hedgehog.property do
+  let failing = fromPairs [] example
+  failing === Left [NoValueForKey "INT_VALUE" "Int value", NoValueForKey "STR_VALUE" "string value"]
+
 main :: IO ()
-main = void $ checkParallel $$(discover)
+main = do
+  ok <-
+    checkParallel $
+      Group
+        "Test.Example"
+        [ ("simple parsing", prop_simpleParsing),
+          ("missing values", prop_handleMissing)
+        ]
+  unless ok (die "failed")
