@@ -13,18 +13,19 @@ Configuring your application based on environment variables should be easy. `con
 It's easier to show then tell. Given a `Server` type containing configuration parameters for some hypothetical web server:
 
 ``` haskell
-{-# LANGUAGE ImportQualifiedPost, OverloadedLabels, OverloadedStrings #-}
+{-# LANGUAGE DeriveGeneric, ImportQualifiedPost, OverloadedLabels, OverloadedStrings #-}
 
 import Configurant (Config, (!))
 import Configurant qualified as Config
+import GHC.Generics (Generic)
 
 data Server = Server
   { port :: Int,
     hostname :: Int
-  }
+  } deriving (Show, Generic)
 ```
 
-you can construct a description of how to parse its environment variables, using the `OverloadedLabels` extension and `!` syntax from the [`named`](https://hackage.haskell.org/package/named) package
+you can construct a description of how to parse its environment variables, using the `OverloadedLabels` extension and `!` syntax from the [`named`](https://hackage.haskell.org/package/named) package:
 
 ``` haskell
 serverEnv :: Config Server
@@ -40,12 +41,21 @@ main :: IO ()
 main = Config.fromEnv serverEnv >>= print
 ```
 
-Under the hood, this uses higher-kinded data types via the `higgledy` and `barbies` library, and the validation monad from `validators`.
+There exists the `Config.fromEnvOrExit` helper to handle the common case of printing errors to stdout and then exiting.
 
-## TODO
+## How does this work?
 
-- Figure out the story with `System.Environment` and `System.Environment.Blank`
+In Go, it's trivial to add metadata to fields of a structure thanks to struct tags. Haskell doesn't support such a feature natively, but we can embed it in the type system without too much trouble. The `higgledy` package allows us to treat our `Server` type as though it were a higher-kinded type, of kind `(Type -> Type) -> Type`. In other words, this representation has a *shape functor* that wraps its fields, as though we had declared a type that looked like this:
+
+``` haskell
+data ServerF f = ServerF
+  { port :: f Int
+  , hostname :: f Int
+  } deriving (Show, Generic)
+```
+
+With this higher-kinded representation, it's fairly trivial to slot in a validation applicative as the `f` parameter, which allows us to specify validators for individual fields. All the details of this higher-kinded representation are abstracted away in this library; if you use the `!` syntax and overloaded labels, you should never have to worry about it.
 
 ## Thanks
 
-Kelsey Hightower's `envconfig` served as the primary source of inspiration. The idea to use `higgledy` came from me finding [`harg`](https://hackage.haskell.org/package/harg), though `configurant` is simpler and less ambitious than `harg`, being intended only for environment variable parsing.
+Kelsey Hightower's `envconfig` served as the primary source of inspiration. The idea to use `higgledy` came from me finding [`harg`](https://hackage.haskell.org/package/harg), though `configurant` is less ambitious and has fewer dependencies than `harg`, being intended only for environment variable parsing, and I didn't look at `harg`'s implementation'.
