@@ -21,7 +21,7 @@ import GHC.Generics (Generic)
 
 data Server = Server
   { port :: Int,
-    hostname :: Int
+    hostname :: String
   } deriving (Show, Generic)
 ```
 
